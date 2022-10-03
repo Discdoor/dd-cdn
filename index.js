@@ -7,7 +7,8 @@ const fs = require('fs');
 const path = require('path');
 const morgan = require('morgan');
 const bodyParser = require('body-parser');
-const mime = require('mime-types');
+const mime = require('mime');
+const uuid = require('uuid');
 
 // Get content base dir - this is the root for all CDN resources
 const CONTENT_BASE_DIR = path.resolve(cfg.paths.contentBase);
@@ -73,7 +74,9 @@ app.post("/upload", async (req, res) => {
     }
 
     // Process each file
-    for(let fileObj of req.files) {
+    for(let fileKey of Object.keys(req.files)) {
+        const fileObj = req.files[fileKey];
+
         // Check file size
         if(fileObj.size > repoObj.limits.sizeMax) {
             res.status(400);
@@ -100,10 +103,16 @@ app.post("/upload", async (req, res) => {
 
         // Move file into place
         // TODO generate file ID
-        const targetFileName = fileObj.md5 + mime.extension(fileObj.mimetype);
+        const ext = mime.getExtension(fileObj.mimetype);
+        const targetFileName = uuid.v4() + ((ext != null) ? `.${ext}` : "");
         fileObj.mv(path.join(CONTENT_BASE_DIR, repoName, targetFileName));
 
-
+        // Send response
+        res.status(200);
+        res.end(JSON.stringify({
+            fileName: targetFileName
+        }));
+        return;
     }
 });
 
