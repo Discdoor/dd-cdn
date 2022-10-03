@@ -102,7 +102,6 @@ app.post("/upload", async (req, res) => {
         }
 
         // Move file into place
-        // TODO generate file ID
         const ext = mime.getExtension(fileObj.mimetype);
         const targetFileName = uuid.v4() + ((ext != null) ? `.${ext}` : "");
         fileObj.mv(path.join(CONTENT_BASE_DIR, repoName, targetFileName));
