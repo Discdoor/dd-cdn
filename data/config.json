@@ -1,0 +1,30 @@
+{
+    "http": {
+        "port": 8083
+    },
+    "paths": {
+        "contentBase": "./content"
+    },
+    "resourceRepositories": [
+        {
+            "name": "attachments",
+            "acceptedTypes": "*",
+            "limits": {
+                "sizeMax": 2097152,
+                "noFiles": 4
+            }
+        },
+        {
+            "name": "attachments",
+            "acceptedTypes": [
+                "image/png",
+                "image/jpeg",
+                "image/gif"
+            ],
+            "limits": {
+                "sizeMax": 10485760,
+                "noFiles": 1
+            }
+        }
+    ]
+}
