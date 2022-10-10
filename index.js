@@ -124,7 +124,7 @@ async function main() {
         const rPath = path.join(CONTENT_BASE_DIR, repoObj.name);
 
         if(!fs.existsSync(rPath))
-            fs.mkdirSync(rPath);
+            fs.mkdirSync(rPath, { recursive: true });
     }
 
     // Start HTTP server
