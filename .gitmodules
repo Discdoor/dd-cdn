@@ -1,0 +1,3 @@
+[submodule "content/assets"]
+	path = content/assets
+	url = https://github.com/Discdoor/dd-client-assets.git

@@ -1,3 +1,6 @@
 /node_modules
 /package-lock.json
-/content
+/content/*
+
+# app assets are contained within a submodule
+!/content/assets
