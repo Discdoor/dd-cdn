@@ -1,6 +1,8 @@
 {
     "http": {
-        "port": 8083
+        "port": 8083,
+        "restrict_hostname": "localhost",
+        "client_url": "http://localhost:4096"
     },
     "paths": {
         "contentBase": "./content"
@@ -15,7 +17,7 @@
             }
         },
         {
-            "name": "attachments",
+            "name": "avatars",
             "acceptedTypes": [
                 "image/png",
                 "image/jpeg",

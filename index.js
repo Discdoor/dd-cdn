@@ -9,9 +9,14 @@ const morgan = require('morgan');
 const bodyParser = require('body-parser');
 const mime = require('mime');
 const uuid = require('uuid');
+const cors = require('cors');
 
 // Get content base dir - this is the root for all CDN resources
 const CONTENT_BASE_DIR = path.resolve(cfg.paths.contentBase);
+
+app.use(cors({
+    origin: cfg.http.client_url
+}));
 
 // Map static content to appropriate folder
 app.use("/", express.static(CONTENT_BASE_DIR));
@@ -24,10 +29,14 @@ app.use(fileUpload({
         files: 5 // Only 5 files at a time
     }
 }));
+
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(morgan('dev'));
 
 app.post("/upload", async (req, res) => {
+    if(req.hostname !== cfg.http.restrict_hostname)
+        return res.end();
+
     // Check if repository is specified
     if((!req.body) || (typeof req.body.repository !== 'string')) {
         res.status(400);
@@ -89,15 +98,13 @@ app.post("/upload", async (req, res) => {
 
         // Check file type
         if(repoObj.acceptedTypes !== "*") {
-            for(let rType of repoObj.acceptedTypes) {
-                if(fileObj.mimetype !== rType) {
-                    res.status(400);
-                    res.end(JSON.stringify({
-                        code: 1004,
-                        message: "Mimetype is not allowed for the specified repository."
-                    }));
-                    return;
-                }
+            if(!repoObj.acceptedTypes.includes(fileObj.mimetype)) {
+                res.status(400);
+                res.end(JSON.stringify({
+                    code: 1004,
+                    message: "Mimetype is not allowed for the specified repository."
+                }));
+                return;
             }
         }
 
