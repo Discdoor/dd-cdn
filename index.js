@@ -2,7 +2,6 @@
 const express = require('express');
 const app = express();
 const cfg = require('./data/config.json');
-const fileUpload = require('express-fileupload');
 const fs = require('fs');
 const path = require('path');
 const morgan = require('morgan');
@@ -10,6 +9,10 @@ const bodyParser = require('body-parser');
 const mime = require('mime');
 const uuid = require('uuid');
 const cors = require('cors');
+const libdd = require('libdd-node');
+const { constructResponseObject, sendResponseObject } = libdd.api;
+const { validateSchema } = libdd.schema;
+const multer = require('multer');
 
 // Get content base dir - this is the root for all CDN resources
 const CONTENT_BASE_DIR = path.resolve(cfg.paths.contentBase);
@@ -21,105 +24,108 @@ app.use(cors({
 // Map static content to appropriate folder
 app.use("/", express.static(CONTENT_BASE_DIR));
 
-// Register some middleware
-app.use(fileUpload({
-    createParentPath: true,
-    limits: {
-        fileSize: 1024 * 1024 * 50, // 50 Megabyte hard limit
-        files: 5 // Only 5 files at a time
-    }
-}));
-
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(morgan('dev'));
 
-app.post("/upload", async (req, res) => {
+/**
+ * Pre file upload checking middleware.
+ */
+const preUploadCheckMiddleware = (req, res, next) => {
     if(req.hostname !== cfg.http.restrict_hostname)
-        return res.end();
+        return sendResponseObject(res, 403, constructResponseObject(false, "Access denied"));
 
-    // Check if repository is specified
-    if((!req.body) || (typeof req.body.repository !== 'string')) {
-        res.status(400);
-        res.end(JSON.stringify({
-            code: 1002,
-            message: "Invalid arguments. An upload repository must be specified."
-        }));
-        return;
+    // Validate body
+    try {
+        // Check types
+        validateSchema({
+            repository: { type: "string" },
+        }, req.params);
+    } catch(e) {
+        sendResponseObject(res, 400, constructResponseObject(false, e.message || ""));
     }
 
     // Check if repo exists
     /** @type {String} */
-    const repoName = req.body.repository;
+    const repoName = req.params.repository;
     const repoObj = cfg.resourceRepositories.find(x => x.name == repoName);
 
-    if(!repoObj) {
-        res.status(400);
-        res.end(JSON.stringify({
-            code: 1003,
-            message: "Invalid repository specified."
-        }));
+    if(!repoObj)
+        return sendResponseObject(res, 400, constructResponseObject(false, "Invalid repository specified."));
 
-        return;
-    }
+    // Prep target files array
+    req.targetFiles = [];
+    req.repoName = req.params.repository;
+    req.repoObj = repoObj;
+    next();
+}
 
-    // Check if we have files
-    if(!req.files) {
-        res.status(400);
-        res.end(JSON.stringify({
-            code: 1001,
-            message: "No files were specified for upload."
-        }));
-        return;
-    }
+// Create multer and storage handler
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        if(!req.params.repository)
+            return cb(new Error("Invalid repository"));
 
-    // Check if number of files exceeds limit
-    if(req.files.length > repoObj.limits.noFiles) {
-        res.status(400);
-        res.end(JSON.stringify({
-            code: 1006,
-            message: "Too many files."
-        }));
-        return;
-    }
-
-    // Process each file
-    for(let fileKey of Object.keys(req.files)) {
-        const fileObj = req.files[fileKey];
-
-        // Check file size
-        if(fileObj.size > repoObj.limits.sizeMax) {
-            res.status(400);
-            res.end(JSON.stringify({
-                code: 1005,
-                message: "File is too big."
-            }));
-            return;
-        }
-
-        // Check file type
-        if(repoObj.acceptedTypes !== "*") {
-            if(!repoObj.acceptedTypes.includes(fileObj.mimetype)) {
-                res.status(400);
-                res.end(JSON.stringify({
-                    code: 1004,
-                    message: "Mimetype is not allowed for the specified repository."
-                }));
-                return;
-            }
-        }
-
-        // Move file into place
-        const ext = mime.getExtension(fileObj.mimetype);
+        cb(null, `./content/${req.params.repository}`);
+    },
+    filename: (req, file, cb) => {
+        const ext = mime.getExtension(file.mimetype);
         const targetFileName = uuid.v4() + ((ext != null) ? `.${ext}` : "");
-        fileObj.mv(path.join(CONTENT_BASE_DIR, repoName, targetFileName));
 
-        // Send response
-        res.status(200);
-        res.end(JSON.stringify({
-            fileName: targetFileName
-        }));
-        return;
+        // check file mime
+        if(req.repoObj.acceptedTypes !== "*")
+            if(!req.repoObj.acceptedTypes.includes(file.mimetype))
+                return cb(new Error("Mimetype is not allowed for the specified repository."));
+
+        // check file size
+        if(file.size > req.repoObj.limits.sizeMax)
+            return cb(new Error("File is too big."));
+
+        cb(null, targetFileName);
+
+        req.targetFiles.push({
+            name: targetFileName,
+            repository: req.params.repository
+        });
     }
+});
+
+// Create uploading interface
+const upload = multer({
+    storage,
+    limits: {
+        fileSize: 1024 * 1024 * 50, // 50 Megabyte hard limit
+        files: 5 // Only 5 files at a time
+    }
+});
+
+/*
+Uploads a file to the specified repository.
+*/
+app.post("/upload/:repository", preUploadCheckMiddleware,
+(req, res, next) => {
+    upload.array("file", req.repoObj.limits.noFiles)(req, res, next);
+},
+async (req, res) => {
+    try {
+        /** @type {String} */
+        const repoName = req.params.repository;
+        const repoObj = cfg.resourceRepositories.find(x => x.name == repoName);
+
+        if(!req.files)
+            return sendResponseObject(res, 400, constructResponseObject(false, "No files were specified for upload."));
+
+        return sendResponseObject(res, 200, constructResponseObject(true, "", req.targetFiles));
+    } catch(e) {
+        return sendResponseObject(res, 500, constructResponseObject(false, e.message || ""));
+    }
+});
+
+/** 
+ * Error middleware.
+ */
+app.use((error, req, res, next) => {
+    if(error) 
+        sendResponseObject(res, 400, constructResponseObject(false, error.message || ""));
 });
 
 /**
