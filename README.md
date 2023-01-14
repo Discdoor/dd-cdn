@@ -2,14 +2,28 @@
 
 This microservice is responsible for providing a Content Delivery Network (CDN) service.
 
-## System Requirements
- * NodeJS v16 or later
+## System requirements
 
-## Getting started
- - Clone the repository
+* NodeJS v16 or newer.
+* Docker (if you wish to dockerize)
 
- - Install dependencies with `npm i`.
+## Installing dependencies
+To install all project dependencies, run `npm install` inside the project folder.
 
- - Edit `data/config.json` to match your needs. You can adjust limits and file repositories as you please.
+## Running
+Below are instructions to help you run `dd-cdn`.
 
- - Run `node index.js` to start an instance.
+### Development
+To run a development server, execute the following commands.
+- `npm run dev`
+
+### Production (local)
+To run this for production locally, run the following commands.
+- `npm run start`
+
+### Production (dockerized, preferred)
+Simply create an image from the Dockerfile included here.
+
+To do this, run `docker build -t dd-cdn .` in the repository root.
+
+Then you can create a container based on this image.

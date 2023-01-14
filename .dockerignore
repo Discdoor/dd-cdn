@@ -1,3 +1,9 @@
 node_modules
 npm-debug.log
 content
+*.md
+*.example
+.env
+LICENSE
+data
+content

@@ -1,10 +1,10 @@
 # Use NODEJS
 FROM node:16
 
-# Create app directory
+# Setup image
 WORKDIR /usr/src/cdn
 COPY package*.json ./
+COPY . ./
 RUN npm install
-COPY . .
 EXPOSE 8083
-CMD [ "node", "index.js" ]
+CMD [ "npm", "run", "start" ]
